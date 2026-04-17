@@ -108,6 +108,16 @@ func (p interpreterCataloger) Name() string {
 	return p.name
 }
 
+func (p interpreterCataloger) Globs() []string {
+	globs := []string{p.extensionsGlob}
+	for _, cls := range p.interpreterClassifiers {
+		if cls.FileGlob != "" {
+			globs = append(globs, cls.FileGlob)
+		}
+	}
+	return globs
+}
+
 func (p interpreterCataloger) Catalog(_ context.Context, resolver file.Resolver) ([]pkg.Package, []artifact.Relationship, error) {
 	interpreterPkgs, intErrs := p.catalogInterpreters(resolver)
 	extensionPkgs, extErrs := p.catalogExtensions(resolver)

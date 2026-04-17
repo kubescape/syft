@@ -23,27 +23,39 @@ type PathIndexVisitor func(string, string, os.FileInfo, error) error
 type directoryIndexer struct {
 	path              string
 	base              string
+	skipMIME          bool
 	pathIndexVisitors []PathIndexVisitor
 	errPaths          map[string]error
 	tree              filetree.ReadWriter
 	index             filetree.Index
+	executables       []string            // paths of executable binaries detected during walk (only populated when skipMIME is true)
+	allBasenames      map[string][]string // basename → full paths for ALL walked files (only populated when skipMIME is true)
 }
 
-func newDirectoryIndexer(path, base string, visitors ...PathIndexVisitor) *directoryIndexer {
+func newDirectoryIndexer(path, base string, matcher *PatternMatcher, visitors ...PathIndexVisitor) *directoryIndexer {
+	builtinVisitors := []PathIndexVisitor{
+		requireFileInfo,
+		disallowByFileType,
+		skipPathsByMountTypeAndName(path),
+	}
+
+	var skipMIME bool
+	var allBasenames map[string][]string
+	if matcher != nil {
+		skipMIME = true
+		allBasenames = make(map[string][]string)
+		builtinVisitors = append(builtinVisitors, selectivePatternVisitor(matcher))
+	}
+
 	i := &directoryIndexer{
-		path:  path,
-		base:  base,
-		tree:  filetree.New(),
-		index: filetree.NewIndex(),
-		pathIndexVisitors: append(
-			[]PathIndexVisitor{
-				requireFileInfo,
-				disallowByFileType,
-				skipPathsByMountTypeAndName(path),
-			},
-			visitors...,
-		),
-		errPaths: make(map[string]error),
+		path:              path,
+		base:              base,
+		skipMIME:          skipMIME,
+		tree:              filetree.New(),
+		index:             filetree.NewIndex(),
+		pathIndexVisitors: append(builtinVisitors, visitors...),
+		errPaths:          make(map[string]error),
+		allBasenames:      allBasenames,
 	}
 
 	// these additional stateful visitors should be the first thing considered when walking / indexing
@@ -58,8 +70,26 @@ func newDirectoryIndexer(path, base string, visitors ...PathIndexVisitor) *direc
 	return i
 }
 
-func (r *directoryIndexer) build() (filetree.Reader, filetree.IndexReader, error) {
-	return r.tree, r.index, indexAllRoots(r.path, r.indexTree)
+func selectivePatternVisitor(matcher *PatternMatcher) PathIndexVisitor {
+	return func(_, path string, info os.FileInfo, _ error) error {
+		if info == nil {
+			return nil
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil
+		}
+		if !matcher.Matches(path) {
+			return ErrSkipPath
+		}
+		return nil
+	}
+}
+
+func (r *directoryIndexer) build() (filetree.Reader, filetree.IndexReader, []string, map[string][]string, error) {
+	return r.tree, r.index, r.executables, r.allBasenames, indexAllRoots(r.path, r.indexTree)
 }
 
 func indexAllRoots(root string, indexer func(string, *progress.AtomicStage) ([]string, error)) error {
@@ -152,6 +182,21 @@ func (r *directoryIndexer) indexTree(root string, stager *progress.AtomicStage) 
 
 			if newRoot != "" {
 				roots = append(roots, newRoot)
+			}
+
+			// During selective indexing, track all file basenames for fast glob fallback.
+			if r.allBasenames != nil && info != nil && !info.IsDir() {
+				base := filepath.Base(path)
+				r.allBasenames[base] = append(r.allBasenames[base], path)
+			}
+
+			// During selective indexing, detect executable binaries for FilesByMIMEType fallback.
+			// This must happen even for files skipped by the pattern matcher, because
+			// MIME-based catalogers (go-module-binary, graalvm, elf-package) need them.
+			if r.skipMIME && info != nil && info.Mode().IsRegular() && info.Mode()&0111 != 0 {
+				if mime := detectExecutableMIMEType(path); mime != "" {
+					r.executables = append(r.executables, path)
+				}
 			}
 
 			return nil
@@ -322,7 +367,12 @@ func (r directoryIndexer) addDirectoryToIndex(p string, info os.FileInfo) error 
 		return err
 	}
 
-	metadata := file.NewMetadataFromPath(p, info)
+	var metadata file.Metadata
+	if r.skipMIME {
+		metadata = NewMetadataFromPathSkipMIME(p, info)
+	} else {
+		metadata = NewMetadataFromPath(p, info)
+	}
 	r.index.Add(*ref, metadata)
 
 	return nil
@@ -334,7 +384,12 @@ func (r directoryIndexer) addFileToIndex(p string, info os.FileInfo) error {
 		return err
 	}
 
-	metadata := file.NewMetadataFromPath(p, info)
+	var metadata file.Metadata
+	if r.skipMIME {
+		metadata = NewMetadataFromPathSkipMIME(p, info)
+	} else {
+		metadata = NewMetadataFromPath(p, info)
+	}
 	r.index.Add(*ref, metadata)
 
 	return nil
@@ -416,7 +471,12 @@ func (r directoryIndexer) addSymlinkToIndex(p string, info os.FileInfo) (string,
 		targetAbsPath = filepath.Clean(filepath.Join(path.Dir(p), linkTarget))
 	}
 
-	metadata := file.NewMetadataFromPath(p, info)
+	var metadata file.Metadata
+	if r.skipMIME {
+		metadata = NewMetadataFromPathSkipMIME(p, info)
+	} else {
+		metadata = NewMetadataFromPath(p, info)
+	}
 	metadata.LinkDestination = linkTarget
 	r.index.Add(*ref, metadata)
 

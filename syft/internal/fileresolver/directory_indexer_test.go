@@ -145,8 +145,8 @@ func TestDirectoryIndexer_IncludeRootPathInIndex(t *testing.T) {
 		return nil
 	}
 
-	indexer := newDirectoryIndexer("/", "", filterFn)
-	tree, index, err := indexer.build()
+	indexer := newDirectoryIndexer("/", "", nil, filterFn)
+	tree, index, _, _, err := indexer.build()
 	require.NoError(t, err)
 
 	exists, ref, err := tree.File(file.Path("/"))
@@ -163,7 +163,7 @@ func TestDirectoryIndexer_indexPath_skipsNilFileInfo(t *testing.T) {
 	tempFile, err := os.CreateTemp("", "")
 	require.NoError(t, err)
 
-	indexer := newDirectoryIndexer(tempFile.Name(), "")
+	indexer := newDirectoryIndexer(tempFile.Name(), "", nil)
 
 	t.Run("filtering path with nil os.FileInfo", func(t *testing.T) {
 		assert.NotPanics(t, func() {
@@ -176,8 +176,8 @@ func TestDirectoryIndexer_indexPath_skipsNilFileInfo(t *testing.T) {
 
 func TestDirectoryIndexer_index(t *testing.T) {
 	// note: this test is testing the effects from NewFromDirectory, indexTree, and addPathToIndex
-	indexer := newDirectoryIndexer("test-fixtures/system_paths/target", "")
-	tree, index, err := indexer.build()
+	indexer := newDirectoryIndexer("test-fixtures/system_paths/target", "", nil)
+	tree, index, _, _, err := indexer.build()
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -250,8 +250,8 @@ func TestDirectoryIndexer_index_for_AncestorSymlinks(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			indexer := newDirectoryIndexer("test-fixtures/system_paths/target",
-				fmt.Sprintf("%v/%v", dir, test.relative_base))
-			tree, index, err := indexer.build()
+				fmt.Sprintf("%v/%v", dir, test.relative_base), nil)
+			tree, index, _, _, err := indexer.build()
 			require.NoError(t, err)
 			info, err := os.Stat(test.path)
 			assert.NoError(t, err)
@@ -281,8 +281,8 @@ func TestDirectoryIndexer_index_survive_badSymlink(t *testing.T) {
 	// │   │   └── fd -> ../somewhere/self/fd
 	// │   └── somewhere
 	// ...
-	indexer := newDirectoryIndexer("test-fixtures/bad-symlinks/root/place/fd", "test-fixtures/bad-symlinks/root/place/fd")
-	_, _, err := indexer.build()
+	indexer := newDirectoryIndexer("test-fixtures/bad-symlinks/root/place/fd", "test-fixtures/bad-symlinks/root/place/fd", nil)
+	_, _, _, _, err := indexer.build()
 	require.NoError(t, err)
 }
 
@@ -299,13 +299,13 @@ func TestDirectoryIndexer_SkipsAlreadyVisitedLinkDestinations(t *testing.T) {
 		}
 		return nil
 	}
-	resolver := newDirectoryIndexer("./test-fixtures/symlinks-prune-indexing", "")
+	resolver := newDirectoryIndexer("./test-fixtures/symlinks-prune-indexing", "", nil)
 	// we want to cut ahead of any possible filters to see what paths are considered for indexing (closest to walking)
 	resolver.pathIndexVisitors = append([]PathIndexVisitor{pathObserver}, resolver.pathIndexVisitors...)
 
 	// note: this test is NOT about the effects left on the tree or the index, but rather the WHICH paths that are
 	// considered for indexing and HOW traversal prunes paths that have already been visited
-	_, _, err := resolver.build()
+	_, _, _, _, err := resolver.build()
 	require.NoError(t, err)
 
 	expected := []string{
@@ -337,9 +337,9 @@ func TestDirectoryIndexer_SkipsAlreadyVisitedLinkDestinations(t *testing.T) {
 }
 
 func TestDirectoryIndexer_IndexesAllTypes(t *testing.T) {
-	indexer := newDirectoryIndexer("./test-fixtures/symlinks-prune-indexing", "")
+	indexer := newDirectoryIndexer("./test-fixtures/symlinks-prune-indexing", "", nil)
 
-	tree, index, err := indexer.build()
+	tree, index, _, _, err := indexer.build()
 	require.NoError(t, err)
 
 	allRefs := tree.AllFiles(file.AllTypes()...)

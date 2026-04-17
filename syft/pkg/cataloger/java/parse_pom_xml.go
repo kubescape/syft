@@ -27,6 +27,10 @@ func (p pomXMLCataloger) Name() string {
 	return pomCatalogerName
 }
 
+func (c pomXMLCataloger) Globs() []string {
+	return []string{"**/pom.xml"}
+}
+
 func (p pomXMLCataloger) Catalog(ctx context.Context, fileResolver file.Resolver) ([]pkg.Package, []artifact.Relationship, error) {
 	locations, err := fileResolver.FilesByGlob("**/pom.xml")
 	if err != nil {

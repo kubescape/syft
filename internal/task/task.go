@@ -33,6 +33,7 @@ type task struct {
 	name      string
 	selectors *strset.Set
 	task      func(context.Context, file.Resolver, sbomsync.Builder) error
+	globs     []string
 }
 
 func NewTask(name string, tsk func(context.Context, file.Resolver, sbomsync.Builder) error, tags ...string) Task {
@@ -86,4 +87,26 @@ func (ts tasks) Tags() []string {
 	sort.Strings(tagsList)
 
 	return tagsList
+}
+
+// CollectGlobs extracts all static glob patterns from task groups.
+// Patterns come from catalogers that implement pkg.GlobProvider.
+func CollectGlobs(taskGroups [][]Task) []string {
+	seen := make(map[string]bool)
+	var allGlobs []string
+	for _, group := range taskGroups {
+		for _, t := range group {
+			tt, ok := t.(*task)
+			if !ok || len(tt.globs) == 0 {
+				continue
+			}
+			for _, g := range tt.globs {
+				if !seen[g] {
+					seen[g] = true
+					allGlobs = append(allGlobs, g)
+				}
+			}
+		}
+	}
+	return allGlobs
 }

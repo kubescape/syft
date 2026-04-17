@@ -55,9 +55,11 @@ type Cataloger struct {
 	requesters        []requester
 	checks            []func() error
 	upstreamCataloger string
+	globs             []string // static glob patterns declared via WithParserByGlobs/WithParserByPath
 }
 
 func (c *Cataloger) WithParserByGlobs(parser Parser, globs ...string) *Cataloger {
+	c.globs = append(c.globs, globs...)
 	c.requesters = append(c.requesters,
 		func(resolver file.Resolver, _ Environment) []request {
 			var requests []request
@@ -95,6 +97,7 @@ func (c *Cataloger) WithParserByMimeTypes(parser Parser, types ...string) *Catal
 }
 
 func (c *Cataloger) WithParserByPath(parser Parser, paths ...string) *Cataloger {
+	c.globs = append(c.globs, paths...)
 	c.requesters = append(c.requesters,
 		func(resolver file.Resolver, _ Environment) []request {
 			var requests []request
@@ -155,6 +158,14 @@ func NewCataloger(upstreamCataloger string) *Cataloger {
 func (c *Cataloger) Name() string {
 	return c.upstreamCataloger
 }
+
+// Globs returns all static glob patterns this cataloger will query.
+// Implements pkg.GlobProvider.
+func (c *Cataloger) Globs() []string {
+	return append([]string(nil), c.globs...)
+}
+
+var _ pkg.GlobProvider = (*Cataloger)(nil)
 
 // Catalog is given an object to resolve file references and content, this function returns any discovered Packages after analyzing the catalog source.
 func (c *Cataloger) Catalog(ctx context.Context, resolver file.Resolver) ([]pkg.Package, []artifact.Relationship, error) {

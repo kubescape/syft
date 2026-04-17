@@ -15,12 +15,14 @@ var _ file.Resolver = (*Directory)(nil)
 // Directory implements path and content access for the directory data source.
 type Directory struct {
 	FiletreeResolver
-	path    string
-	indexer *directoryIndexer
+	path         string
+	indexer      *directoryIndexer
+	executables  []string
+	allBasenames map[string][]string
 }
 
-func NewFromDirectory(root string, base string, pathFilters ...PathIndexVisitor) (*Directory, error) {
-	r, err := newFromDirectoryWithoutIndex(root, base, pathFilters...)
+func NewFromDirectory(root, base string, matcher *PatternMatcher, pathFilters ...PathIndexVisitor) (*Directory, error) {
+	r, err := newFromDirectoryWithoutIndex(root, base, matcher, pathFilters...)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +30,7 @@ func NewFromDirectory(root string, base string, pathFilters ...PathIndexVisitor)
 	return r, r.buildIndex()
 }
 
-func newFromDirectoryWithoutIndex(root string, base string, pathFilters ...PathIndexVisitor) (*Directory, error) {
+func newFromDirectoryWithoutIndex(root, base string, matcher *PatternMatcher, pathFilters ...PathIndexVisitor) (*Directory, error) {
 	chroot, err := NewChrootContextFromCWD(root, base)
 	if err != nil {
 		return nil, fmt.Errorf("unable to interpret chroot context: %w", err)
@@ -45,7 +47,7 @@ func newFromDirectoryWithoutIndex(root string, base string, pathFilters ...PathI
 			Index:  filetree.NewIndex(),
 			Opener: nativeOSFileOpener,
 		},
-		indexer: newDirectoryIndexer(cleanRoot, cleanBase, pathFilters...),
+		indexer: newDirectoryIndexer(cleanRoot, cleanBase, matcher, pathFilters...),
 	}, nil
 }
 
@@ -53,7 +55,7 @@ func (r *Directory) buildIndex() error {
 	if r.indexer == nil {
 		return fmt.Errorf("no directory indexer configured")
 	}
-	tree, index, err := r.indexer.build()
+	tree, index, executables, allBasenames, err := r.indexer.build()
 	if err != nil {
 		return err
 	}
@@ -61,6 +63,8 @@ func (r *Directory) buildIndex() error {
 	r.Tree = tree
 	r.Index = index
 	r.SearchContext = filetree.NewSearchContext(tree, index)
+	r.executables = executables
+	r.allBasenames = allBasenames
 
 	return nil
 }

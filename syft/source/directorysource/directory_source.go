@@ -28,10 +28,11 @@ type Config struct {
 }
 
 type directorySource struct {
-	id       artifact.ID
-	config   Config
-	resolver *fileresolver.Directory
-	mutex    *sync.Mutex
+	id            artifact.ID
+	config        Config
+	resolver      file.Resolver
+	mutex         *sync.Mutex
+	indexPatterns []string
 }
 
 func NewFromPath(path string) (source.Source, error) {
@@ -137,6 +138,12 @@ func (s directorySource) Describe() source.Description {
 	}
 }
 
+func (s *directorySource) SetIndexPatterns(patterns []string) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.indexPatterns = patterns
+}
+
 func (s *directorySource) FileResolver(_ source.Scope) (file.Resolver, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -150,12 +157,24 @@ func (s *directorySource) FileResolver(_ source.Scope) (file.Resolver, error) {
 		// this should be the only file resolver that might have overlap with where files are cached
 		exclusionFunctions = append(exclusionFunctions, excludeCachePathVisitors()...)
 
-		res, err := fileresolver.NewFromDirectory(s.config.Path, s.config.Base, exclusionFunctions...)
-		if err != nil {
-			return nil, fmt.Errorf("unable to create directory resolver: %w", err)
+		if len(s.indexPatterns) > 0 {
+			matcher, err := fileresolver.NewPatternMatcher(s.indexPatterns)
+			if err != nil {
+				return nil, fmt.Errorf("unable to create pattern matcher: %w", err)
+			}
+			res, err := fileresolver.NewSelectiveDirectory(s.config.Path, s.config.Base, matcher, exclusionFunctions...)
+			if err != nil {
+				return nil, fmt.Errorf("unable to create selective directory resolver: %w", err)
+			}
+			log.WithFields("patterns", len(s.indexPatterns)).Debug("using selective file indexing")
+			s.resolver = res
+		} else {
+			res, err := fileresolver.NewFromDirectory(s.config.Path, s.config.Base, nil, exclusionFunctions...)
+			if err != nil {
+				return nil, fmt.Errorf("unable to create directory resolver: %w", err)
+			}
+			s.resolver = res
 		}
-
-		s.resolver = res
 	}
 
 	return s.resolver, nil

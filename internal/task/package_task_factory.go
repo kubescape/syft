@@ -34,6 +34,12 @@ func newSimplePackageTaskFactory(catalogerFactory func() pkg.Cataloger, tags ...
 
 // NewPackageTask creates a Task function for a generic pkg.Cataloger, honoring the common configuration options.
 func NewPackageTask(cfg CatalogingFactoryConfig, c pkg.Cataloger, tags ...string) Task {
+	// collect static glob patterns if the cataloger provides them
+	var globs []string
+	if gp, ok := c.(pkg.GlobProvider); ok {
+		globs = gp.Globs()
+	}
+
 	fn := func(ctx context.Context, resolver file.Resolver, sbom sbomsync.Builder) error {
 		catalogerName := c.Name()
 		log.WithFields("name", catalogerName).Trace("starting package cataloger")
@@ -69,7 +75,11 @@ func NewPackageTask(cfg CatalogingFactoryConfig, c pkg.Cataloger, tags ...string
 	}
 	tags = append(tags, pkgcataloging.PackageTag)
 
-	return NewTask(c.Name(), fn, tags...)
+	t := NewTask(c.Name(), fn, tags...)
+	if tt, ok := t.(*task); ok {
+		tt.globs = globs
+	}
+	return t
 }
 
 func finalizePkgCatalogerResults(cfg CatalogingFactoryConfig, resolver file.PathResolver, catalogerName string, pkgs []pkg.Package, relationships []artifact.Relationship) ([]pkg.Package, []artifact.Relationship) {

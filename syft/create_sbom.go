@@ -12,6 +12,7 @@ import (
 	"github.com/anchore/go-sync"
 	"github.com/anchore/syft/internal/bus"
 	"github.com/anchore/syft/internal/licenses"
+	"github.com/anchore/syft/internal/log"
 	"github.com/anchore/syft/internal/sbomsync"
 	"github.com/anchore/syft/internal/task"
 	"github.com/anchore/syft/syft/artifact"
@@ -37,6 +38,15 @@ func CreateSBOM(ctx context.Context, src source.Source, cfg *CreateSBOMConfig) (
 	taskGroups, audit, err := cfg.makeTaskGroups(srcMetadata)
 	if err != nil {
 		return nil, err
+	}
+
+	// collect static glob patterns from catalogers for selective indexing
+	if si, ok := src.(interface{ SetIndexPatterns([]string) }); ok {
+		globs := task.CollectGlobs(taskGroups)
+		if len(globs) > 0 {
+			log.WithFields("count", len(globs)).Debug("collected cataloger patterns for selective indexing")
+			si.SetIndexPatterns(globs)
+		}
 	}
 
 	resolver, err := src.FileResolver(cfg.Search.Scope)
