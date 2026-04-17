@@ -43,6 +43,15 @@ func CreateSBOM(ctx context.Context, src source.Source, cfg *CreateSBOMConfig) (
 		return nil, err
 	}
 
+	// collect static glob patterns from catalogers for selective indexing
+	if si, ok := src.(interface{ SetIndexPatterns([]string) }); ok {
+		globs := task.CollectGlobs(taskGroups)
+		if len(globs) > 0 {
+			log.WithFields("count", len(globs)).Debug("collected cataloger patterns for selective indexing")
+			si.SetIndexPatterns(globs)
+		}
+	}
+
 	resolver, err := src.FileResolver(cfg.Search.Scope)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get file resolver: %w", err)

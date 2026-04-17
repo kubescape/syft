@@ -353,6 +353,16 @@ func Test_CatalogerWithParserByMediaType(t *testing.T) {
 		assert.Equal(t, upstream, p.FoundBy)
 	}
 }
+func TestCatalogerGlobs(t *testing.T) {
+	c := NewCataloger("test-cataloger").
+		WithParserByGlobs(nil, "**/package.json", "**/yarn.lock").
+		WithParserByPath(nil, "/etc/os-release").
+		WithParserByMimeTypes(nil, "application/x-executable")
+
+	globs := c.Globs()
+	assert.ElementsMatch(t, []string{"**/package.json", "**/yarn.lock", "/etc/os-release"}, globs)
+}
+
 
 func Test_genericCatalogerReturnsErrors(t *testing.T) {
 	genericErrorReturning := NewCataloger("error returning").WithParserByGlobs(func(ctx context.Context, resolver file.Resolver, environment *Environment, locationReader file.LocationReadCloser) ([]pkg.Package, []artifact.Relationship, error) {

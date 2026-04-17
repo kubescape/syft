@@ -505,7 +505,7 @@ func TestDirectoryResolver_FilesByPath_request_response(t *testing.T) {
 				require.NoError(t, os.Chdir(testDir))
 			})
 
-			resolver, err := NewFromDirectory(c.root, c.base)
+			resolver, err := NewFromDirectory(c.root, c.base, nil)
 			require.NoError(t, err)
 			require.NotNil(t, resolver)
 
@@ -557,7 +557,7 @@ func TestDirectoryResolver_FilesByPath_relativeRoot(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			resolver, err := NewFromDirectory(c.relativeRoot, "")
+			resolver, err := NewFromDirectory(c.relativeRoot, "", nil)
 			assert.NoError(t, err)
 
 			refs, err := resolver.FilesByPath(c.input)
@@ -612,7 +612,7 @@ func TestDirectoryResolver_FilesByPath_absoluteRoot(t *testing.T) {
 			absRoot, err := filepath.Abs(c.relativeRoot)
 			require.NoError(t, err)
 
-			resolver, err := NewFromDirectory(absRoot, "")
+			resolver, err := NewFromDirectory(absRoot, "", nil)
 			assert.NoError(t, err)
 
 			refs, err := resolver.FilesByPath(c.input)
@@ -673,7 +673,7 @@ func TestDirectoryResolver_FilesByPath(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			resolver, err := NewFromDirectory(c.root, "")
+			resolver, err := NewFromDirectory(c.root, "", nil)
 			assert.NoError(t, err)
 
 			hasPath := resolver.HasPath(c.input)
@@ -840,7 +840,7 @@ func Test_directoryResolver_FilesByMIMEType(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.fixturePath, func(t *testing.T) {
-			resolver, err := NewFromDirectory(test.fixturePath, "")
+			resolver, err := NewFromDirectory(test.fixturePath, "", nil)
 			assert.NoError(t, err)
 			locations, err := resolver.FilesByMIMEType(test.mimeType)
 			assert.NoError(t, err)
@@ -967,7 +967,7 @@ func Test_directoryResolver_FileContentsByLocation(t *testing.T) {
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 
-	r, err := NewFromDirectory(".", "")
+	r, err := NewFromDirectory(".", "", nil)
 	require.NoError(t, err)
 
 	exists, existingPath, err := r.Tree.File(stereoscopeFile.Path(filepath.Join(cwd, "testdata/image-simple/file-1.txt")))
@@ -1084,7 +1084,7 @@ func TestDirectoryResolver_FilesByPath_baseRoot(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			resolver, err := NewFromDirectory(c.root, c.root)
+			resolver, err := NewFromDirectory(c.root, c.root, nil)
 			assert.NoError(t, err)
 
 			refs, err := resolver.FilesByPath(c.input)

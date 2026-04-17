@@ -9,12 +9,20 @@ import (
 )
 
 func NewMetadataFromPath(path string, info os.FileInfo) file.Metadata {
+	return newMetadataFromPath(path, info, false)
+}
+
+func NewMetadataFromPathSkipMIME(path string, info os.FileInfo) file.Metadata {
+	return newMetadataFromPath(path, info, true)
+}
+
+func newMetadataFromPath(path string, info os.FileInfo, skipMIME bool) file.Metadata {
 	var mimeType string
 	uid, gid := getXid(info)
 
 	ty := file.TypeFromMode(info.Mode())
 
-	if ty == file.TypeRegular {
+	if !skipMIME && ty == file.TypeRegular {
 		usablePath := path
 		// denormalize the path back to windows so we can open the file
 		if windows.HostRunningOnWindows() {

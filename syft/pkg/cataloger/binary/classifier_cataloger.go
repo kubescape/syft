@@ -57,6 +57,16 @@ func (c cataloger) Name() string {
 	return catalogerName
 }
 
+func (c cataloger) Globs() []string {
+	var globs []string
+	for _, cls := range c.classifiers {
+		if cls.FileGlob != "" {
+			globs = append(globs, cls.FileGlob)
+		}
+	}
+	return globs
+}
+
 // Catalog is given an object to resolve file references and content, this function returns any discovered Packages
 // after analyzing the catalog source.
 func (c cataloger) Catalog(_ context.Context, resolver file.Resolver) ([]pkg.Package, []artifact.Relationship, error) {
