@@ -1126,3 +1126,16 @@ func decompressLZMA(compressedData []byte, size int64) (io.Reader, error) {
 	}
 	return reader, nil
 }
+
+// hasUPXMagic reports whether the "UPX!" magic appears within the scan window, meaning the binary
+// may be UPX-packed. Section-based pre-filters must not reject such a file: its real sections only
+// become readable after unpackUPX reconstructs it.
+func hasUPXMagic(r io.ReaderAt) bool {
+	buf := make([]byte, upxMagicScanWindow)
+	n, err := r.ReadAt(buf, 0)
+	if n <= 0 {
+		_ = err
+		return false
+	}
+	return bytes.Contains(buf[:n], upxMagic)
+}

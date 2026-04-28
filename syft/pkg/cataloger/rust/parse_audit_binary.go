@@ -14,6 +14,7 @@ import (
 	"github.com/anchore/syft/syft/internal/unionreader"
 	"github.com/anchore/syft/syft/pkg"
 	"github.com/anchore/syft/syft/pkg/cataloger/generic"
+	"github.com/anchore/syft/syft/pkg/cataloger/internal/binutils"
 )
 
 // Catalog identifies executables then attempts to read Rust dependency information from them
@@ -24,6 +25,11 @@ func parseAuditBinary(_ context.Context, _ file.Resolver, _ *generic.Environment
 	unionReader, err := unionreader.GetUnionReader(reader.ReadCloser)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// Pre-filter: skip binaries without .dep-v0 section (not a cargo auditable binary).
+	if !binutils.HasSection(unionReader, ".dep-v0") {
+		return nil, nil, nil
 	}
 
 	infos, err := parseAuditBinaryEntry(unionReader, reader.RealPath)

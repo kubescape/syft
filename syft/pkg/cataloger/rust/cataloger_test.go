@@ -311,8 +311,9 @@ func Test_AuditBinaryCataloger_Globs(t *testing.T) {
 }
 
 func Test_corruptAuditBinary(t *testing.T) {
+	// With the .dep-v0 pre-filter, non-ELF / corrupt binaries are skipped
+	// silently (no packages, no error) rather than returning a parse error.
 	pkgtest.NewCatalogTester().
 		FromFile(t, "testdata/glob-paths/partial-binary").
-		WithError().
 		TestParser(t, parseAuditBinary)
 }

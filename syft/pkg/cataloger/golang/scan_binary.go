@@ -16,6 +16,7 @@ import (
 	"github.com/anchore/syft/syft/file"
 	"github.com/anchore/syft/syft/internal/elfutil"
 	"github.com/anchore/syft/syft/internal/unionreader"
+	"github.com/anchore/syft/syft/pkg/cataloger/internal/binutils"
 )
 
 type extendedBuildInfo struct {
@@ -59,6 +60,13 @@ func scanFile(ctx context.Context, location file.Location, reader unionreader.Un
 
 	var builds []*extendedBuildInfo
 	for _, r := range readers {
+		// Pre-filter: skip binaries with no .go.buildinfo section, avoiding the expensive
+		// buildinfo.Read() magic scan on every ELF. A UPX-packed binary only exposes that
+		// section once unpacked, so it has to bypass the filter.
+		if !binutils.HasSection(r, ".go.buildinfo") && !hasUPXMagic(r) {
+			continue
+		}
+
 		build, err := scanReader(ctx, location, r, captureSymbols)
 		errs = unknown.Join(errs, err)
 		if build != nil {
