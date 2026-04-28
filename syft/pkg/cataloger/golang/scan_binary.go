@@ -12,6 +12,7 @@ import (
 	"github.com/anchore/syft/internal/unknown"
 	"github.com/anchore/syft/syft/file"
 	"github.com/anchore/syft/syft/internal/unionreader"
+	"github.com/anchore/syft/syft/pkg/cataloger/internal/binutils"
 )
 
 type extendedBuildInfo struct {
@@ -32,6 +33,12 @@ func scanFile(location file.Location, reader unionreader.UnionReader) ([]*extend
 
 	var builds []*extendedBuildInfo
 	for _, r := range readers {
+		// Pre-filter: skip non-Go binaries by checking for .go.buildinfo section.
+		// This avoids the expensive buildinfo.Read() → searchMagic scan on every ELF binary.
+		if !binutils.HasSection(r, ".go.buildinfo") {
+			continue
+		}
+
 		bi, err := getBuildInfo(r)
 		if err != nil {
 			log.WithFields("file", location.RealPath, "error", err).Trace("unable to read golang buildinfo")

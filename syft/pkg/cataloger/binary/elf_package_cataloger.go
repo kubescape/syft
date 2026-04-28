@@ -16,6 +16,7 @@ import (
 	"github.com/anchore/syft/syft/file"
 	"github.com/anchore/syft/syft/internal/unionreader"
 	"github.com/anchore/syft/syft/pkg"
+	"github.com/anchore/syft/syft/pkg/cataloger/internal/binutils"
 )
 
 var _ pkg.Cataloger = (*elfPackageCataloger)(nil)
@@ -141,6 +142,11 @@ func getELFNotes(r file.LocationReadCloser) (*elfBinaryPackageNotes, error) {
 	unionReader, err := unionreader.GetUnionReader(r)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get union reader for binary: %w", err)
+	}
+
+	// Pre-filter: skip binaries without .note.package section.
+	if !binutils.HasSection(unionReader, ".note.package") {
+		return nil, nil
 	}
 
 	f, err := elf.NewFile(unionReader)

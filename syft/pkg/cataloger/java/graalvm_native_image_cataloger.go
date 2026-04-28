@@ -251,6 +251,13 @@ func (ni nativeImageElf) fetchPkgs() (pkgs []pkg.Package, relationships []artifa
 	var sbomLength elf.Symbol
 	var svmVersion elf.Symbol
 
+	// Pre-filter: check if __svm_version_info appears in the raw string tables
+	// before loading full parsed symbol entries. Reading .dynstr/.strtab raw bytes
+	// (~10-50 KB) is far cheaper than parsing all symbols with their metadata.
+	if !elfHasGraalVMSymbol(ni.file) {
+		return nil, nil, nil
+	}
+
 	si, err := ni.getSymbols()
 	if err != nil {
 		return nil, nil, err
@@ -284,6 +291,26 @@ func (ni nativeImageElf) fetchPkgs() (pkgs []pkg.Package, relationships []artifa
 	lengthLocation := sbomLength.Value - dataSectionBase
 
 	return decompressSbom(data, sbomLocation, lengthLocation)
+}
+
+// elfHasGraalVMSymbol checks if the __svm_version_info symbol name appears in
+// the ELF string tables without loading full parsed symbol entries.
+func elfHasGraalVMSymbol(f *elf.File) bool {
+	pattern := []byte("\x00__svm_version_info\x00")
+	for _, sectionName := range []string{".dynstr", ".strtab"} {
+		sec := f.Section(sectionName)
+		if sec == nil {
+			continue
+		}
+		data, err := sec.Data()
+		if err != nil {
+			continue
+		}
+		if bytes.Contains(data, pattern) {
+			return true
+		}
+	}
+	return false
 }
 
 // getSymbols obtains the union of the symbols in the .symtab and .dynsym sections of the ELF file
