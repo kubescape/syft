@@ -60,10 +60,10 @@ func scanFile(ctx context.Context, location file.Location, reader unionreader.Un
 
 	var builds []*extendedBuildInfo
 	for _, r := range readers {
-		// Pre-filter: skip binaries with no .go.buildinfo section, avoiding the expensive
-		// buildinfo.Read() magic scan on every ELF. A UPX-packed binary only exposes that
-		// section once unpacked, so it has to bypass the filter.
-		if !binutils.HasSection(r, ".go.buildinfo") && !hasUPXMagic(r) {
+		// Pre-filter: skip ELF binaries with no .go.buildinfo section, avoiding the expensive
+		// buildinfo.Read() magic scan. A UPX-packed binary only exposes that section once
+		// unpacked, so it has to bypass the filter; non-ELF binaries are never skipped here.
+		if binutils.MissingSectionInELF(r, ".go.buildinfo") && !hasUPXMagic(r) {
 			continue
 		}
 

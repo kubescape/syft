@@ -27,8 +27,9 @@ func parseAuditBinary(_ context.Context, _ file.Resolver, _ *generic.Environment
 		return nil, nil, err
 	}
 
-	// Pre-filter: skip binaries without .dep-v0 section (not a cargo auditable binary).
-	if !binutils.HasSection(unionReader, ".dep-v0") {
+	// Pre-filter: skip ELF binaries without a .dep-v0 section (not a cargo auditable binary).
+	// Non-ELF binaries fall through to the parser rather than being dropped.
+	if binutils.MissingSectionInELF(unionReader, ".dep-v0") {
 		return nil, nil, nil
 	}
 

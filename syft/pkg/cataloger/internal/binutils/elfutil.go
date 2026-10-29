@@ -54,3 +54,16 @@ func HasSymbolName(reader io.ReaderAt, symbolName string) bool {
 
 	return false
 }
+
+// MissingSectionInELF reports whether reader is an ELF that does not carry the named section.
+// A non-ELF file returns false on purpose: a section pre-filter cannot speak for Mach-O or PE
+// binaries, and skipping those would drop their packages from the SBOM entirely.
+func MissingSectionInELF(reader io.ReaderAt, sectionName string) bool {
+	f, err := elf.NewFile(reader)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	return f.Section(sectionName) == nil
+}
