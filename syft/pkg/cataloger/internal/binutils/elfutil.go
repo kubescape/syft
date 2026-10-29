@@ -2,15 +2,16 @@ package binutils
 
 import (
 	"bytes"
-	"debug/elf"
 	"io"
+
+	"github.com/anchore/syft/syft/internal/elfutil"
 )
 
-// HasSection opens ELF headers and checks if a named section exists.
-// Returns false for non-ELF files (no error).
+// HasSection reports whether an ELF carries a named section.
+// Returns false for non-ELF files, and for an ELF syft declines to expand (no error).
 // Cost: ~3 KB of I/O (headers + section header table only).
 func HasSection(reader io.ReaderAt, sectionName string) bool {
-	f, err := elf.NewFile(reader)
+	f, err := elfutil.NewFile(reader)
 	if err != nil {
 		return false
 	}
@@ -19,13 +20,12 @@ func HasSection(reader io.ReaderAt, sectionName string) bool {
 	return f.Section(sectionName) != nil
 }
 
-// HasSymbolName opens ELF headers, reads the raw string table section,
-// and checks if a symbol name appears as a null-terminated string.
-// Reads only the string table bytes (~10-50 KB) without per-symbol metadata.
+// HasSymbolName reads the raw string table section and checks whether a symbol name appears as a
+// null-terminated string. Reads only the string table bytes (~10-50 KB) without per-symbol metadata.
 // Checks .dynstr first, falls back to .strtab.
 // Returns false for non-ELF files (no error).
 func HasSymbolName(reader io.ReaderAt, symbolName string) bool {
-	f, err := elf.NewFile(reader)
+	f, err := elfutil.NewFile(reader)
 	if err != nil {
 		return false
 	}
@@ -56,10 +56,14 @@ func HasSymbolName(reader io.ReaderAt, symbolName string) bool {
 }
 
 // MissingSectionInELF reports whether reader is an ELF that does not carry the named section.
-// A non-ELF file returns false on purpose: a section pre-filter cannot speak for Mach-O or PE
-// binaries, and skipping those would drop their packages from the SBOM entirely.
+//
+// It fails open, and both ways of failing matter. A non-ELF file returns false because a section
+// pre-filter cannot speak for Mach-O or PE binaries. An ELF that elfutil refuses to expand also
+// returns false: the caller's own path is bounded and may still read the file — debug/buildinfo
+// reaches .go.buildinfo through the program headers — so answering "section absent" here would
+// drop packages that the unfiltered scan still finds.
 func MissingSectionInELF(reader io.ReaderAt, sectionName string) bool {
-	f, err := elf.NewFile(reader)
+	f, err := elfutil.NewFile(reader)
 	if err != nil {
 		return false
 	}
