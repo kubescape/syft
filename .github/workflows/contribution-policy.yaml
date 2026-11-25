@@ -1,6 +1,7 @@
 name: Contribution policy automation
 
-on:
+# Metadata-only automation: a pinned action runs without checking out or executing PR code.
+on: # zizmor: ignore[dangerous-triggers]
   issues:
     types: [opened, reopened, labeled, unlabeled, assigned, unassigned, closed]
   issue_comment:
