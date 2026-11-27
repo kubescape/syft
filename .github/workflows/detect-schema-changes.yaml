@@ -1,5 +1,3 @@
-# Note: this workflow has been disabled manually in the UI and will be replaced in short order
-
 name: "Detect schema changes"
 
 on:
@@ -39,14 +37,15 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           persist-credentials: false
-          repository: anchore/syft # IMPORTANT! An additional protection that this is checking out code from the expected repository 
-          ref: main # IMPORTANT!  It is CRITICAL that this only ever considers the code from main and NEVER EVER from a fork.
+          repository: ${{ github.repository }} # The trusted PR target repository.
+          ref: ${{ github.event.pull_request.base.sha }} # Trusted base code only; never the PR head.
 
       - run: python .github/scripts/labeler.py
         env:
           # note: this token has write access to the repo
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_PR_NUMBER: ${{ github.event.number }}
+          GH_REPO: ${{ github.repository }} # Prevent gh from selecting the fork parent.
 
       - name: Delete existing comment
         if: ${{ hashFiles( env.CI_COMMENT_FILE ) == '' }}
